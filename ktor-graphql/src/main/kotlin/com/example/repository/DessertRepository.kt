@@ -1,48 +1,42 @@
 package com.example.repository
 
-import com.example.data.desserts
 import com.example.models.Dessert
-import java.lang.Exception
+import com.example.models.DessertsPage
+import com.example.models.PageInfo
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoCollection
+import org.litote.kmongo.getCollection
 
-class DessertRepository : RepositoryInterface<Dessert> {
+class DessertRepository(client: MongoClient) : RepositoryInterface<Dessert> {
 
-    override fun getById(id: String): Dessert {
-        return try {
-            desserts.find { it.id == id } ?: throw Exception("ID not exists")
-        }catch (e: Exception) {
-            throw Exception("cannot find the dessert")
+    override var col: MongoCollection<Dessert>
+
+    init {
+        val database = client.getDatabase("test")
+        col = database.getCollection<Dessert>("Dessert")
+    }
+
+    fun getDesertsPage(page: Int, size: Int): DessertsPage {
+        try {
+            val skips = page * size
+            val res = col.find().skip(skips).limit(size)
+            val resultsx = res.asIterable().map { it }
+
+            val total = col.estimatedDocumentCount()
+            val totalPages = (total / size) + 1
+            val nextPages = if (resultsx.isNotEmpty()) page + 1 else null
+            val previous = if (page > 0) page - 1 else null
+
+
+            val pageInfo = PageInfo(total.toInt(), totalPages.toInt(), nextPages, previous)
+
+            return DessertsPage.initialize {
+                results = resultsx
+                info = pageInfo
+            }
+
+        } catch (t: Throwable) {
+            throw Exception("Cannot get desserts pages")
         }
     }
-
-    override fun getAll(): List<Dessert> {
-        return desserts
-    }
-
-    override fun deleteById(id: String): Boolean {
-        return try {
-            val dessert = desserts.find { it.id == id } ?: throw Exception("ID not exists")
-            desserts.remove(dessert)
-            true
-        }catch (e: Throwable) {
-            throw Exception("cannot find the dessert")
-        }
-    }
-
-    override fun update(entry: Dessert): Dessert {
-        return try {
-            val dessert = desserts.find { it.id == entry.id }.apply {
-                this?.name = entry.name
-            } ?: throw Exception("ID Not existis")
-            dessert
-        }catch (e: Exception) {
-            throw Exception("cannot find the dessert")
-        }
-    }
-
-    override fun add(entry: Dessert): Dessert {
-        desserts.add(entry)
-        return entry
-    }
-
-
 }
